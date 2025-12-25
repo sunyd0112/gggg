@@ -257,10 +257,12 @@ Return a JSON array of todo items. Each item has:
 - depends_on: array of todo ids this depends on (optional)
 
 ## Tool Pipeline:
-- story: Plans narrative arc, assigns atoms to draft slides (depends on atoms)
-- content: Generates layouts and widgets for draft slides (depends on story)
-- When creating slides from scratch: atoms → story → content → export
+- story: Plans narrative arc from source content (depends on constitution only)
+- atoms: Extracts structured content atoms from source (depends on constitution only)
+- content: Generates layouts and widgets, uses both story and atoms (depends on story + atoms)
+- When creating slides: constitution → [story + atoms in parallel] → content → export
 - When refining existing slides: story (to update draft) → content → export
+- Story and atoms run in PARALLEL after constitution
 
 Refer to each tool's examples for proper JSON format.
 

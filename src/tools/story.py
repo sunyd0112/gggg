@@ -20,8 +20,9 @@ if TYPE_CHECKING:
 
 
 class StoryContext(ToolContext):
-    """Context for story planning - holds atoms and existing slides."""
-    atoms_collection: Optional[Any] = Field(default=None, description="AtomCollection for planning")
+    """Context for story planning - holds source content and existing slides."""
+    source_content: Optional[str] = Field(default=None, description="Raw source content for story generation")
+    atoms_collection: Optional[Any] = Field(default=None, description="Optional atoms for enhanced refinement")
     existing_slides: Optional[List[Dict]] = Field(default=None, description="Existing slides for refinement")
     intent_guidance: str = Field(default="", description="Guidance from constitution")
     slide_count_target: Optional[int] = Field(default=None, description="Target slide count")
@@ -50,13 +51,14 @@ class StoryTool(DirectTool[StoryContext, StoryPatch]):
     """
     
     name: ClassVar[str] = "story"
-    description: ClassVar[str] = """Plan narrative arc and assign atoms to draft slides.
+    description: ClassVar[str] = """Plan narrative arc and create draft slides directly from source content.
 
-OUTPUT: Draft slides with story, atoms, density, visual_design populated.
+OUTPUT: Draft slides with story, density, visual_design populated.
 Layout and widgets are EMPTY (filled by content tool).
+Atoms field is EMPTY (atoms are generated separately and used by content tool).
 
 MODES:
-1. mode="generate": Plan complete story arc from atoms
+1. mode="generate": Plan complete story arc from source content
 2. mode="refine": Modify existing story (merge/split/reorder slides)
 
 WHEN TO USE REFINE:
@@ -80,12 +82,11 @@ WHEN TO USE GENERATE:
         "mode: 'generate' for full creation, 'refine' for editing story",
         "instruction: user's request",
         "slide_count: target number of slides",
-        "atom_filter: filter criteria to select specific atoms",
     ]
-    requires: ClassVar[List[str]] = ["atoms"]
+    requires: ClassVar[List[str]] = ["constitution"]
     produces: ClassVar[List[str]] = ["slides (draft state)"]
     examples: ClassVar[List[str]] = [
-        '{"id": "story", "type": "story", "params": {"slide_count": 10, "mode": "generate"}, "depends_on": ["atoms"]}',
+        '{"id": "story", "type": "story", "params": {"slide_count": 10, "mode": "generate"}, "depends_on": ["constitution"]}',
         '{"id": "story", "type": "story", "params": {"mode": "refine", "instruction": "merge page 3 and page 4"}}',
         '{"id": "story", "type": "story", "params": {"mode": "refine", "instruction": "add a conclusion slide"}}',
     ]
@@ -118,22 +119,19 @@ WHEN TO USE GENERATE:
         if mode == "refine" and state.slides:
             existing_slides = state.slides
         
-        # Get atoms and apply filter
-        atoms_collection = state.get_atoms()
-        atom_filter = params.get("atom_filter")
-        if atom_filter and atoms_collection:
-            from src.generation.todo.models import AtomFilter
-            if isinstance(atom_filter, dict):
-                atom_filter = AtomFilter(**atom_filter)
-            
-            all_atoms = atoms_collection.list_contexts()
-            atom_dicts = [a.model_dump() if hasattr(a, 'model_dump') else a for a in all_atoms]
-            filtered_atoms = atom_filter.apply(atom_dicts)
-            
-            filter_info = f"\n\nAtom filtering: {len(filtered_atoms)}/{len(atom_dicts)} atoms selected"
-            intent_guidance += filter_info
+        # Get source content
+        source_content = None
+        if state.source:
+            from pathlib import Path
+            source_path = Path(state.source.path)
+            if source_path.exists():
+                source_content = source_path.read_text(encoding='utf-8')
+        
+        # Get atoms (optional - used for refinement if available)
+        atoms_collection = state.get_atoms() if mode == "refine" else None
         
         return StoryContext(
+            source_content=source_content,
             atoms_collection=atoms_collection,
             existing_slides=existing_slides,
             intent_guidance=intent_guidance,
@@ -141,11 +139,11 @@ WHEN TO USE GENERATE:
         )
     
     def transform(self, context: StoryContext, user_instruction: str) -> StoryPatch:
-        """Execute story planning via LLM."""
-        from src.generation.content.story_generator import generate_story, refine_story
+        """Execute story planning via LLM using source content."""
+        from src.generation.content.story_generator import generate_story_from_source, refine_story_from_source
         
-        if not context.atoms_collection:
-            raise ValueError("No atoms in context for story planning")
+        if not context.source_content:
+            raise ValueError("No source content available for story generation")
         
         # Build full guidance
         full_guidance = context.intent_guidance
@@ -155,22 +153,34 @@ WHEN TO USE GENERATE:
             else:
                 full_guidance = f"User instruction: {user_instruction}"
         
-        atom_count = len(context.atoms_collection.list_contexts())
-        
         if context.existing_slides:
-            # Refinement mode
+            # Refinement mode - modify existing story structure
             self._log(f"Refining story for {len(context.existing_slides)} existing slides")
-            draft_slides = refine_story(
-                existing_slides=context.existing_slides,
-                atoms=context.atoms_collection,
-                user_instruction=user_instruction,
-                intent_guidance=full_guidance,
-            )
+            if context.atoms_collection:
+                # Use atoms for more structured refinement
+                from src.generation.content.story_generator import refine_story
+                atom_count = len(context.atoms_collection.list_contexts())
+                self._log(f"Using {atom_count} atoms for refinement")
+                draft_slides = refine_story(
+                    existing_slides=context.existing_slides,
+                    atoms=context.atoms_collection,
+                    user_instruction=user_instruction,
+                    intent_guidance=full_guidance,
+                )
+            else:
+                # Fallback to source-based refinement
+                self._log(f"Using source content for refinement")
+                draft_slides = refine_story_from_source(
+                    existing_slides=context.existing_slides,
+                    source_content=context.source_content,
+                    user_instruction=user_instruction,
+                    intent_guidance=full_guidance,
+                )
         else:
-            # Generate mode
-            self._log(f"Planning story from {atom_count} atoms")
-            draft_slides = generate_story(
-                atoms=context.atoms_collection,
+            # Generation mode - create new story from scratch
+            self._log(f"Planning story from source content ({len(context.source_content)} chars)")
+            draft_slides = generate_story_from_source(
+                source_content=context.source_content,
                 user_instruction=user_instruction,
                 slide_count=context.slide_count_target,
                 intent_guidance=full_guidance,
