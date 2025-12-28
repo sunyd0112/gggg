@@ -273,91 +273,82 @@ After analyzing the uploaded file, first decide the main focus of the storyline.
     "audience": "string (target audience, e.g., 'Executive Leadership', 'VCs', 'Product Team')",
     "focus": "string (main focus/thesis of the presentation)",
     "total_slides": integer (total slide pages),
-    "scqa_design": "string (Design the storyline by specifying the S/C/Q/A structure and map body slides to corresponding phases. Example: 'Slides 2-3: Situation & Complication (current pain), Slides 4-8: Answer (solution + moat + proof), Slides 9-10: Decision & Next Steps')"
+    "scqa_design": "string (Design the storyline by specifying the S/C/Q/A structure and map body slides to corresponding phases."
   }}
 }}
 ```
 
 ## Step 2: Generate Slides
-Then output exactly `presentation_meta.total_slides` slides as a JSON array. Each slide object must have:
-
-**Required fields for ALL slides:**
-- id: Unique ID (e.g., "slide_01_cover")
-- rank: Order (1-based integer)
-- state: "draft"
-- story: Narrative description (strategic purpose in SCQA flow)
-- atoms: [] (empty array - content extracted later)
-- density: "minimal" | "moderate" | "dense"
-- visual_design: Visual framework description (e.g., "2x2 matrix", "Waterfall chart", "Hero stat left, context right")
-- layout: "" (empty - filled later)
-- widgets: {{}} (empty object - filled later)
-
-**Optional fields (use when appropriate):**
-- headline: Active declarative claim (required for all body slides)
-- subtitle: Optional precision/scope
-- category: "cover" | "Situation" | "Complication" | "Question" | "Answer" | "ending"
-
-**Cover slide (rank 1) must include:**
-- headline: Presentation title (from presentation_meta.title)
-- subtitle: One-sentence vision (from presentation_meta.subtitle)
-- category: "cover"
-- density: "minimal"
-
-**Ending slide (last rank) must include:**
-- headline: "Next Steps" | "Decision Needed" | "Q&A" | etc.
-- category: "ending"
-
-**Body slides must include:**
-- headline: Billboard-style claim (≤9 words)
-- category: One of "Situation", "Complication", "Question", "Answer"
-
-## Complete Output Format
-Return a JSON object with BOTH presentation_meta and slides:
+Then output the slides (exactly {{presentation_meta.total_slides}} slides) as JSON in the following format:
 
 ```json
 {{
-  "presentation_meta": {{
-    "title": "Transforming Meetings into Instant Artifacts",
-    "subtitle": "AI-powered doc co-creation in Teams",
-    "audience": "Executive Leadership",
-    "focus": "Enable real-time document generation from Teams meetings to drive Copilot monetization and platform stickiness",
-    "total_slides": 10,
-    "scqa_design": "Slides 2-3 establish Situation/Complication (manual doc creation bottleneck). Slides 4-8 present Answer (solution, business case, technical feasibility, competitive moat). Slides 9-10 address execution and decision."
-  }},
   "slides": [
     {{
-      "id": "slide_01_cover",
-      "rank": 1,
-      "state": "draft",
-      "headline": "Transforming Meetings into Instant Artifacts",
-      "subtitle": "AI-powered doc co-creation in Teams",
+      "slide_id": 1 (cover page),
+      "headline": "presentation_meta.title",
+      "subtitle": "presentation_meta.subtitle (optional)",
       "category": "cover",
-      "story": "Title slide establishing the product vision",
-      "atoms": [],
-      "density": "minimal",
-      "visual_design": "Centered title and subtitle, clean executive style",
-      "layout": "",
-      "widgets": {{}}
+      "presenters": [
+          {{"name": "string", "role": "string (optional)", "org": "string (optional)"}}
+        ],
+      "date": "YYYY-MM-DD (optional; defaults to meta.date)"
+      "visual_hint": "string (optional)"
     }},
     {{
-      "id": "slide_02_situation",
-      "rank": 2,
-      "state": "draft",
-      "headline": "Manual doc creation drains 45 minutes per meeting",
-      "category": "Situation",
-      "story": "SITUATION: Establish agreed-upon status quo - meetings generate decisions but manual document creation creates productivity gap",
-      "atoms": [],
-      "density": "moderate",
-      "visual_design": "Waterfall chart showing time loss stages from discussion to final deliverable",
-      "layout": "",
-      "widgets": {{}}
+      "slide_id": 2,
+      "headline": "string (active_headline, exec-readable, declarative)",
+      "subtitle": "string (optional, adds precision or scope)",
+      "density_tag": "impact | medium | deepdive",
+      "speaker_intent": "string (optional: what the audience should think/decide/feel)",
+      "category": "Situation | Complication | Question | Answer",
+      "content": {{
+        "sections": [
+          {{
+            "title": "string",
+            "bullets": [
+              {{
+                "text": "string",
+                "citation": {{
+                  "source_id": "string",
+                  "location": "string (optional: page/section/timestamp)"
+                }}
+              }}
+            ]
+          }}
+        ]
+      }},
+      "visual_hint": "string (optional)"
     }},
-    ...
+    {{
+      "slide_id": N (ending page),
+      "headline": "string (ending of the presentation, like 'Thank you'/'Decision needed'/'Next Step'/'Q&A' etc.)",
+      "subtitle": "string (optional, adds precision or scope)",
+      "category": "ending",
+      "visual_hint": "string (optional)"
+    }},
+    {{
+      "slide_id": N+1 (Include this slide ONLY if Strategic Unknowns exist. Omit otherwise.),
+      "headline": "Data Gap Summary",
+      "category": "data",
+      "content": {{
+        "sections": [
+          {{
+            "title": "Critical Data Gaps",
+            "bullets": [
+              {{
+                "text": "Identify specific missing data point (e.g., Year 3 CAGR) in slide [slide_id]"
+              }}
+            ]
+          }}
+        ]
+      }}
+    }}
   ]
 }}
 ```
 
-Return ONLY this JSON object with presentation_meta and slides. No other text."""
+Return ONLY this JSON object with slides. No other text."""
 
 
 def _get_story_prompt(
@@ -649,22 +640,12 @@ Return ONLY the JSON array of all slides:
 
 
 def _parse_json_response(response: str):
-    """Extract JSON object or array from LLM response.
+    """Extract JSON object with slides from LLM response.
     
-    Handles two formats:
-    1. New format: {"presentation_meta": {...}, "slides": [...]}
-    2. Old format: [...]
+    Handles format: {"slides": [...]}
     """
-    # Try to find JSON object with presentation_meta first
-    json_match = re.search(r'\{[\s\S]*"presentation_meta"[\s\S]*"slides"[\s\S]*\}', response)
-    if json_match:
-        try:
-            return json.loads(json_match.group())
-        except json.JSONDecodeError:
-            pass
-    
-    # Try to find JSON array (old format)
-    json_match = re.search(r'\[[\s\S]*\]', response)
+    # Try to find JSON object with slides
+    json_match = re.search(r'\{[\s\S]*"slides"[\s\S]*\}', response)
     if json_match:
         try:
             return json.loads(json_match.group())
