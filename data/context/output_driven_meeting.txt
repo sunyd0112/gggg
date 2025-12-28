@@ -1,0 +1,95 @@
+# Project Overview
+- Title: Transforming Meetings from "Talk" to "Artifacts" 
+- Product: Doc Co-creation Agent in Teams 
+- Date: December 2025 (For Microsoft use only) 
+- Team: Yu, Chao, Bo
+
+# The Evolution of Meeting Outputs
+The project identifies a shift in how meeting results are captured over time:
+- Past (Ancient Meetings): Written language was the sole medium, resulting in text-only output.
+- Present (The Productivity Gap): Meetings use digital tools (PowerPoint, ADO, Digital Whiteboards), but there is a "human bottleneck." Manual translation is required to turn meeting text into tool-ready outputs (Specs, Slide Decks, ADO items).
+- Future (AI-Powered Real-time Generation): Spoken intent becomes immediate output. An AI Agent understands live conversations and generates structured artifacts like updated ADO items, presentation-ready slides, and detailed specs.
+- Notes:
+```
+The history of meetings dates back to the earliest stages of human civilization. In those early days, the only possible output of a meeting was text, because written language was the sole medium available—there were no other forms of multimedia or modalities to express ideas.
+
+Modern work, however, operates in a completely different environment. We now rely on a rich ecosystem of media formats and productivity tools: presenters use PowerPoint, project managers track work in ADO, teams brainstorm on digital whiteboards, and so on. A meeting that produces only raw textual output can no longer meet the needs of today’s knowledge workers. After the meeting, people must spend additional time translating that text into the specific formats required by these tools. A PM, for example, must turn a product discussion into a detailed spec; after a review meeting, someone still needs to convert key points into a polished slide deck. This creates a significant productivity gap.
+
+The root cause of this gap is simple: human participants cannot simultaneously process a live discussion and operate software quickly enough to generate structured, tool-ready outputs in real time. But this is exactly where AI excels.
+By enabling AI to do both—understand the evolving conversation and produce structured artifacts as the meeting unfolds—we can transform meetings into environments where “spoken intent becomes immediate output.” In a scrum meeting, ADO items could be updated automatically in real time by an AI agent. In a product discussion, the agent could synthesize the conversation into a presentation-ready slide deck as the team speaks.
+This is the future of meeting productivity: turning every meeting from a passive discussion into an active, real-time generator of actionable, high-quality outputs.
+
+Before we dive into the main topic and discuss what we plan to do, let's first take a moment to reflect on the past and look ahead at how the output of human meetings​ has evolved.
+In ancient times, the sole output of a meeting was the written word—specifically, meeting minutes. Whether inscribed on paper or carved onto bamboo, text served as the exclusive medium for recording outcomes.
+With the advent of the modern era, people began leveraging a variety of office productivity tools such as PowerPoint and Word. After many meetings, participants still need to invest substantial time manually editing these tools to generate the required deliverables—for example, drafting presentation slides or writing product specification documents. While the true outputs of such meetings are often PowerPoint decks or Word documents, they are seldom produced immediately when the meeting concludes. This delay creates a productivity gap.
+```
+
+# The Shift in Content Generation
+Generative AI enables direct content creation from meeting discussions, acting as a Hub that streamlines the need for traditional document editors (PowerPoint, Word, Excel, Keynote, Pages). It focuses on automating complex edits to produce generated slides and "Smart Docs."
+
+# Problem Statement
+- Making PPT of good style is difficult and time consuming.
+- Story telling is also hard.
+- In-meeting discussions and doc creation are currently two separate workflows. We want to unify them within a single app so that docs can be created immediately after or during the discussion.
+- Time Drain: Employees spend disproportionate hours on formatting and layout adjustments rather than focusing on high-value strategic thinking.
+- The "Blank Page" Paralysis: Synthesizing raw information (meeting notes, dense docs) into concise, structured slide narratives is mentally exhausting and difficult to start.
+- Design Skill Gap: Most professionals are not designers. Achieving a "polished, enterprise-ready" look is often beyond their skillset, leading to frustration.
+
+# Opportunity Summary
+- What: Develop a doc co-creation agent in Teams that can generate PPT/Word based on meeting/chats and channel contexts, enabling Teams users to collaboratively create, review, and edit docs. The content generation engine can also be extended to other content platforms such as SharePoint.
+- Why doc creation? Why us? The doc creation pain point, especially PPT. Unique advantage of multi-modal groundings(audio/video, chats, shared files, meeting histories). A collaborative editing workflow
+
+# Proposed Solution
+- User Interface: "PPT Maker": The proposed solution features an integrated "PPT Maker" within the Teams interface. It includes:
+A Conversation panel for interactive elements and technical implementation notes.
+A Preview window where users can review slides (e.g., "Advanced AI-Driven Speech Recognition & Enhancement System").
+Controls for navigation, thumbnails, and full-screen mode.
+
+# Technical Workflow
+The system operates through an orchestrated backend:
+- Orchestrator: Features a Dispatcher to plan tasks based on user input (slides, context, instructions).
+- Data Mining: A Miner extracts "Facts" from Enterprise Data (meetings, chats, docs) into a Content Pool (Atoms: Architecture, Metrics, Code, etc.).
+- Content Creation: A Weaver handles narration, while a Structurer organizes slides and chapters.
+- Final Output: An Assembler manages layout and style, feeding into an Engine (HTML, FFMPEG, python-pptx) to produce the final Artifact (HTML, PPTX, DOCX, MP4).
+
+# Business Value
+- Competitor Pressure: Gemini
+- Transform Teams to “OS of work”: By moving doc creation inside Teams, it transfoms Teams from comm tool to "OS of work”
+- Data gravity: Once Teams provides immediate doc create/edit after/during meeting, it will enrich the ecosystem of Teams and encourage users to use Teams more.
+- Extensibility: The agent can be extended to other MS apps
+- Notes:
+```
+Drive Copilot Monetization (ARPU Uplift)
+The "Killer App" for AI: "One-click to PPT" is a tangible, high-value feature that directly justifies the cost of Copilot for Microsoft 365 licenses ($30/month). It moves AI from "nice to have" to "essential for workflow."
+2. Deepen Competitive Moat
+Ecosystem Advantage: Unlike Zoom or Slack, Microsoft owns the entire stack: the meeting data (Teams), the file standard (PPTX/DOCX), and the AI (Copilot).
+Hard to Copy: Competitors can summarize meetings, but they cannot natively generate high-fidelity, editable Microsoft Office documents as seamlessly.
+3. Platform Stickiness & Retention
+Teams as the "OS of Work": By moving document creation inside Teams, it transforms the app from a simple communication tool into the primary operating system for enterprise work. Users never have to leave the app, increasing time-in-app and reducing churn.
+4. Data Gravity
+Incentivizes Usage: If the best way to draft a document is to "have a meeting about it," it encourages users to host more discussions and store more data within the Microsoft ecosystem rather than third-party platforms.
+```
+
+# Data & Evidence
+- 30M PPT files created per day
+- Gamma app has more than 70M users
+
+# Challenges
+- Technical: To achieve a ”WOW” effect is difficult. Aethetic Eval. Systematic narrative. Dataset building
+- Resource limitation: No enough resource in SOX CMD to take the ownership of this project
+
+# Asks
+- Dev resource: 6 dev (3 senior+)
+- Designer resource, important for defining Eval metrics 
+
+# Frequently Asked Questions
+Why do we need to build another PPT agent in Teams, given that Copilot, PPT app already provides PPT generation function.
+- The unique advantage of Teams is the fresh meeting knowledge, together with other knowledges like chat, shared files
+- Teams, as a collaboration platform, enables multiple users to create/review/edit docs together in real-time.
+
+Why not integrate with existing app, like Societas?
+- We are open to integrate with any services which are ready for use.
+
+
+
+

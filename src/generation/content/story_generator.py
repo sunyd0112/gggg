@@ -153,26 +153,211 @@ def _get_story_from_source_prompt(
     slide_count: Optional[int],
     intent_guidance: str,
 ) -> str:
-    """Build prompt for story generation directly from source content."""
+    """Build prompt for story generation directly from source content using SCQA framework."""
     # Truncate source if too long
     max_content_length = 10000
     content_preview = source_content[:max_content_length]
     if len(source_content) > max_content_length:
         content_preview += f"\n\n... (truncated {len(source_content) - max_content_length} chars)"
     
-    content_section = f"""## Source Content
+    target_slides = slide_count or 10
+    
+    return f"""**Role**: You are an elite Strategy Consultant specialized in high-stakes venture capital pitches and executive reviews. Your task is to transform the provided uploaded file into an executive storyline for a leadership review.
+
+# UPLOADED FILE CONTENT
 ```
 {content_preview}
-```"""
-    
-    return _build_story_prompt(
-        content_section=content_section,
-        atoms_description="[] (empty - content will be extracted later)",
-        example_atoms_value="[]",
-        user_instruction=user_instruction,
-        intent_guidance=intent_guidance,
-        slide_count=slide_count,
-    )
+```
+
+# USER INSTRUCTION
+{user_instruction or "Create a compelling presentation"}
+
+# GUIDANCE
+{intent_guidance or "None"}
+
+# TARGET SLIDES
+{target_slides} slides
+
+### I. Narrative Blueprint (strict)
+1. Use the **SCQA** flow to structure the narrative to move the audience from agreement to anxiety, then to resolution.
+   - **S (Situation): *Impact-first status quo*. Establish the shared "Status Quo" everyone agrees on, **starting from business outcomes**. 
+   - **C (Complication): ** Identify the "Villain"—the market shift, pain point, or crisis that creates **Tension** and urgency. Explanation: Don't just list problems; frame them as an active loss of value/revenue that creates a **"crisis of inaction."**
+   - **Q (Question): ** Frame the strategic question: How do we capture the opportunity while solving the pain?
+   - **A (Answer): ** Present the product as the inevitable resolution.
+2. **Answer-first SCQA**: Reduce preface and reveal the "core thing we are proposing" (i.e. "Answer") early, then justify it. Compress the SCQ content.
+   - No "scene-setting" slides that restate what everyone knows without a decision implication.
+   - Avoid multi-slide problem tours before naming the solution.
+   - Avoid abstract vision language without a tangible "what we are building/changing" early.
+
+#### Example: 10-slide structure (SCQA, *no over-index on "Q"*; 80% on Solution + Feasibility + Moat)
+- Slide 1: Cover page includes title, subtitle (one-sentence conclusion/vision), presenter/team, date/context
+- Slide 2-3: S + C (fast, minimal background, impact-first mandate for early slides). **Purpose:** move the room from *agreement → anxiety* fast
+- Slides 4–8: A (Answer) = Solution + Moat + Proof. **Purpose:** make the resolution feel inevitable: *what we build, why we win, why it's buildable
+- Slides 9–10: Commit (de-risk + decision + next steps, FAQ, closing vision). **Purpose:** convert skepticism into confidence and force a clean decision
+
+[IMPORTANT] This narrative example is a **reference**, not a strict template. You must **adapt slide allocation and sequencing** based on the Input Document.
+- You may **merge, split, reorder, or rename** slides where it improves clarity and pacing.
+- Keep the **SCQA arc** and the **80/20 rule** intact, but avoid forcing content into a slot that doesn't fit.
+- Prioritize **novel, non-redundant** slides; if two slides would say the same thing, merge them.
+- If the uploaded file lacks evidence for a component (e.g., moat, scale signals), **de-emphasize** it and shift emphasis to what *is* supported.
+
+### II. Content Rules (Hard Constraints)
+1. **Vertical & Horizontal Logic (The Pyramid Upgrade)**:
+   - *Horizontal*: If you read only the headlines of the deck in order, they must form a flawless, 30-second elevator pitch. If there is a "logic gap" between slide titles, the deck fails.
+   - *Vertical*: Every headline must be a claim; every bullet below it must be the evidence.
+2. **Cognitive Rhythm (Density Control)**: Vary the "Cognitive Load" to prevent audience fatigue. Some slides should be "Deep Dives" (dense evidence on technical workflow), while others must be "Impact Slides" (sparse, bold visuals/text to anchor emotional "aha" moments). Never put two Deep Dives back-to-back.
+3. **Insight Density**: 
+   - *Metric Prioritization*: You must extract and prioritize critical data (metric, datetime, number) in the uploaded file.
+   - *The "So What" Conversion*: Replace descriptive facts with strategic inferences to drive decisions. Every bullet must pass the "So What?" test by converting context into quantified impact. Replace "table stakes" (e.g., "market is growing") with active outcomes (e.g., "growth reduces CAC by 15%"). Never present data without a conclusion.
+4. **Feasibility over Vision**: Provide concrete artifacts (like design, data, prototype, etc.) to prove the solution is buildable, not just aspirational.
+5. **Non-Redundancy**: No duplicated content across slides. Every slide must provide "new information gain."
+6. **No Ghost Data**: 
+   - Use only facts in the uploaded file. Do not hallucinate.
+   - If critical data is missing, highlight it as a "Strategic Unknown" rather than inventing it.
+   - If any "Strategic Unknowns" are identified, you must append a "Data Gap Summary" slide at the very end (after the closing page). If no data is missing, omit this slide.
+7. **Subject-Matter Section Titles**: Section titles must describe the content (e.g., "Current User Friction"), not the narrative slot (e.g., "Villain").
+
+
+### III. Headline Compression Rules (Hard Constraints)
+1. **Billboard Headlines**: Every title must be a standalone strategic claim. If an executive reads only the titles, they should grasp the entire investment thesis without looking at the body (English: ≤ 9 words | Chinese: ≤ 15 characters).
+   - *Bad*: "Market Analysis"
+   - *Good*: "Rising acquisition costs are eroding our Q3 profit margins."
+2. Quick "do/don't" rules for great headlines:
+   - *Do*: (1) High-density claims. (1) One claim, one verb, one outcome. (2) Put details in subtitle/body.
+   - *Don't*: Feature lists, architecture nouns, or "we will build…".
+3. Executive Tone: Avoid flowery/dramatic language.
+   - *Bad*: "Meeting value dies without artifacts." (Too dramatic)
+   - *Good*: "Manual document creation delays execution by [X] days." (Professional/Measured)
+   - *Good*: "AI converts spoken intent into tool-ready artifacts." (Clear/Actionable)
+
+
+#### Good executive headline formulas for slide titles (Soft Guidance):
+- Outcome → Mechanism (classic, punchy)
+- Villain → Cost (creates urgency fast)
+- Decision / Ask framing (forces leadership action)
+- Before → After transformation (visual and memorable)
+- Strategic positioning (why we win)
+- Proof / Feasibility (build confidence)
+- Value / ROI framing (exec-friendly)
+- Principle / thesis statements (clean and authoritative)
+- Risk → Mitigation (de-risking slide titles)
+
+### IV. Linguistic & Tone (Hard Constraints)
+1. **Strategic Punchline Usage ("Less but Sharper")**: Selectively add **punchlines** on key slides—such as the **conclusion, major turning points, and core data pages**—to **anchor the message, tighten the narrative, and reinforce the "WOW" factor**. 
+[IMPORTANT] Follow the **"less but sharper"** principle and **control the frequency**; overusing punchlines can make the content feel hollow and slogan-like. Use **at most 3 total** across the deck.
+2. **Semantic Compression & Information Density**: Avoid "fluff" and "wordiness." Transform weak sentences ("We want to make search faster") into high-density claims ("Optimizing discovery to reduce time-to-value").
+3. **WIIFM Persona-Matching**: Tailor vocabulary and focus for the specific stakeholder.
+4. **Impact over Features**: Focuses on the Impact (Outcomes) rather than the Outputs. 
+    - *Bad*: "we built X"
+    - *Good*: "X achieves Y". This text feels more "targeted" to leaders.
+5. **The Elevator Pitch Test**: Do the headlines connect smoothly (e.g., Slide 1 leads inevitably to Slide 2). Can the headlines be read sequentially to form a coherent 30-second pitch?
+
+### V. Visual Hint (Hard Constraints): 
+- Framework over Imagery: Do not describe "pictures." Describe logical frameworks (e.g., 2x2 matrix, Flywheel, Bridge chart).
+- Mandatory for Deep Dives: For every "Deep Dive" slide, the visual_hint must specify a professional consulting chart type (e.g., Waterfall, Sankey, Gantt, or Harvey Balls).
+
+### VI. The Creative Edge (Soft Guidance): 
+1. Use metaphors where appropriate to clarify complex concepts (e.g., comparing a platform to an "operating system for logistics" rather than just a "management tool"). 
+2. Aim for a "Visionary yet Grounded" tone—the deck should feel like it was written by a partner who deeply understands the business, not a clerk summarizing a file.
+
+# OUTPUT FORMAT
+
+## Step 1: Analyze and Design
+After analyzing the uploaded file, first decide the main focus of the storyline. Then output the design of the storyline following the "Answer-first SCQA" arc:
+
+```json
+{{
+  "presentation_meta": {{
+    "title": "string (presentation title)",
+    "subtitle": "string (optional one-sentence vision/conclusion)",
+    "audience": "string (target audience, e.g., 'Executive Leadership', 'VCs', 'Product Team')",
+    "focus": "string (main focus/thesis of the presentation)",
+    "total_slides": integer (total slide pages),
+    "scqa_design": "string (Design the storyline by specifying the S/C/Q/A structure and map body slides to corresponding phases. Example: 'Slides 2-3: Situation & Complication (current pain), Slides 4-8: Answer (solution + moat + proof), Slides 9-10: Decision & Next Steps')"
+  }}
+}}
+```
+
+## Step 2: Generate Slides
+Then output exactly `presentation_meta.total_slides` slides as a JSON array. Each slide object must have:
+
+**Required fields for ALL slides:**
+- id: Unique ID (e.g., "slide_01_cover")
+- rank: Order (1-based integer)
+- state: "draft"
+- story: Narrative description (strategic purpose in SCQA flow)
+- atoms: [] (empty array - content extracted later)
+- density: "minimal" | "moderate" | "dense"
+- visual_design: Visual framework description (e.g., "2x2 matrix", "Waterfall chart", "Hero stat left, context right")
+- layout: "" (empty - filled later)
+- widgets: {{}} (empty object - filled later)
+
+**Optional fields (use when appropriate):**
+- headline: Active declarative claim (required for all body slides)
+- subtitle: Optional precision/scope
+- category: "cover" | "Situation" | "Complication" | "Question" | "Answer" | "ending"
+
+**Cover slide (rank 1) must include:**
+- headline: Presentation title (from presentation_meta.title)
+- subtitle: One-sentence vision (from presentation_meta.subtitle)
+- category: "cover"
+- density: "minimal"
+
+**Ending slide (last rank) must include:**
+- headline: "Next Steps" | "Decision Needed" | "Q&A" | etc.
+- category: "ending"
+
+**Body slides must include:**
+- headline: Billboard-style claim (≤9 words)
+- category: One of "Situation", "Complication", "Question", "Answer"
+
+## Complete Output Format
+Return a JSON object with BOTH presentation_meta and slides:
+
+```json
+{{
+  "presentation_meta": {{
+    "title": "Transforming Meetings into Instant Artifacts",
+    "subtitle": "AI-powered doc co-creation in Teams",
+    "audience": "Executive Leadership",
+    "focus": "Enable real-time document generation from Teams meetings to drive Copilot monetization and platform stickiness",
+    "total_slides": 10,
+    "scqa_design": "Slides 2-3 establish Situation/Complication (manual doc creation bottleneck). Slides 4-8 present Answer (solution, business case, technical feasibility, competitive moat). Slides 9-10 address execution and decision."
+  }},
+  "slides": [
+    {{
+      "id": "slide_01_cover",
+      "rank": 1,
+      "state": "draft",
+      "headline": "Transforming Meetings into Instant Artifacts",
+      "subtitle": "AI-powered doc co-creation in Teams",
+      "category": "cover",
+      "story": "Title slide establishing the product vision",
+      "atoms": [],
+      "density": "minimal",
+      "visual_design": "Centered title and subtitle, clean executive style",
+      "layout": "",
+      "widgets": {{}}
+    }},
+    {{
+      "id": "slide_02_situation",
+      "rank": 2,
+      "state": "draft",
+      "headline": "Manual doc creation drains 45 minutes per meeting",
+      "category": "Situation",
+      "story": "SITUATION: Establish agreed-upon status quo - meetings generate decisions but manual document creation creates productivity gap",
+      "atoms": [],
+      "density": "moderate",
+      "visual_design": "Waterfall chart showing time loss stages from discussion to final deliverable",
+      "layout": "",
+      "widgets": {{}}
+    }},
+    ...
+  ]
+}}
+```
+
+Return ONLY this JSON object with presentation_meta and slides. No other text."""
 
 
 def _get_story_prompt(
@@ -273,7 +458,13 @@ def generate_story_from_source(
     slide_count: Optional[int] = None,
     intent_guidance: str = "",
 ) -> List[Dict[str, Any]]:
-    """Generate draft slides directly from source content without atoms.
+    """Generate draft slides directly from source content using SCQA framework.
+    
+    Creates executive-level storyline following:
+    - SCQA narrative structure (Situation, Complication, Question, Answer)
+    - Impact-first headlines with strategic claims
+    - Cognitive rhythm balancing dense and minimal slides
+    - Visual frameworks (not decorative images)
     
     Args:
         source_content: Raw source text to create story from
@@ -282,21 +473,29 @@ def generate_story_from_source(
         intent_guidance: Optional guidance from constitution
         
     Returns:
-        List of draft slide dicts with story, visual_design populated (atoms field empty)
+        List of draft slide dicts with story, headline, visual_design populated (atoms field empty)
     """
     prompt = _get_story_from_source_prompt(source_content, user_instruction, slide_count, intent_guidance)
     
     deployment = os.getenv('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o')
     response = call_llm(
-        system_prompt="You are a presentation storyteller. Output only valid JSON array.",
+        system_prompt="You are an elite Strategy Consultant creating executive storylines. Output only valid JSON array following the SCQA framework.",
         user_prompt=prompt,
         deployment=deployment,
         temperature=0.7,
-        max_tokens=8000,  # Need room for 10+ draft slides
+        max_tokens=8000,  # Need room for 10+ draft slides with detailed visual_design
     )
     
     # Parse JSON from response
-    slides = _parse_json_array(response)
+    result = _parse_json_response(response)
+    
+    # Extract slides from the result
+    if isinstance(result, dict) and "slides" in result:
+        slides = result["slides"]
+    elif isinstance(result, list):
+        slides = result
+    else:
+        raise ValueError(f"Unexpected response format: expected dict with 'slides' or array, got {type(result)}")
     
     # Validate and normalize
     for slide in slides:
@@ -305,7 +504,7 @@ def generate_story_from_source(
         slide.setdefault("widgets", {})
         slide.setdefault("density", "moderate")
         slide.setdefault("visual_design", "hierarchical")
-        slide.setdefault("atoms", [])  # Empty atoms list for source-based generation
+        slide.setdefault("atoms", [])
     
     return slides
 
@@ -449,8 +648,38 @@ Return ONLY the JSON array of all slides:
     return slides
 
 
+def _parse_json_response(response: str):
+    """Extract JSON object or array from LLM response.
+    
+    Handles two formats:
+    1. New format: {"presentation_meta": {...}, "slides": [...]}
+    2. Old format: [...]
+    """
+    # Try to find JSON object with presentation_meta first
+    json_match = re.search(r'\{[\s\S]*"presentation_meta"[\s\S]*"slides"[\s\S]*\}', response)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+    
+    # Try to find JSON array (old format)
+    json_match = re.search(r'\[[\s\S]*\]', response)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+    
+    # Try direct parse
+    try:
+        return json.loads(response)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse story response as JSON: {e}")
+
+
 def _parse_json_array(response: str) -> List[Dict]:
-    """Extract JSON array from LLM response."""
+    """Extract JSON array from LLM response (for refinement operations)."""
     # Try to find JSON array in response
     json_match = re.search(r'\[[\s\S]*\]', response)
     if json_match:
