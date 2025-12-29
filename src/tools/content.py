@@ -214,14 +214,25 @@ Only layout and widgets are generated."""
         # Merge: replace drafts with generated, keep others
         merged = []
         for slide in current_slides:
-            slide_id = slide.get("id")
+            # Handle both 'id' and 'slide_id' field names
+            slide_id = slide.get("id") or slide.get("slide_id")
             if slide_id in generated_by_id:
                 # Replace draft with generated active slide
                 generated = generated_by_id[slide_id]
-                # Preserve story/atoms/visual_design from original
-                generated["story"] = slide.get("story", generated.get("story", ""))
-                generated["atoms"] = slide.get("atoms", generated.get("atoms", []))
-                generated["visual_design"] = slide.get("visual_design", generated.get("visual_design", ""))
+                # Preserve fields from original draft (for backward compatibility)
+                if "story" in slide:
+                    generated["story"] = slide["story"]
+                generated.setdefault("atoms", slide.get("atoms", []))
+                generated.setdefault("visual_design", slide.get("visual_design", ""))
+                # Preserve new SCQA fields if present
+                if "content" in slide:
+                    generated["content"] = slide["content"]
+                if "headline" in slide:
+                    generated["headline"] = slide["headline"]
+                if "subtitle" in slide:
+                    generated["subtitle"] = slide["subtitle"]
+                if "category" in slide:
+                    generated["category"] = slide["category"]
                 merged.append(generated)
             else:
                 merged.append(slide)

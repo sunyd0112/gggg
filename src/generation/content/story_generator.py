@@ -254,7 +254,7 @@ def _get_story_from_source_prompt(
 
 ### V. Visual Hint (Hard Constraints): 
 - Framework over Imagery: Do not describe "pictures." Describe logical frameworks (e.g., 2x2 matrix, Flywheel, Bridge chart).
-- Mandatory for Deep Dives: For every "Deep Dive" slide, the visual_hint must specify a professional consulting chart type (e.g., Waterfall, Sankey, Gantt, or Harvey Balls).
+- Mandatory for Deep Dives: For every "Deep Dive" slide, the visual_design must specify a professional consulting chart type (e.g., Waterfall, Sankey, Gantt, or Harvey Balls).
 
 ### VI. The Creative Edge (Soft Guidance): 
 1. Use metaphors where appropriate to clarify complex concepts (e.g., comparing a platform to an "operating system for logistics" rather than just a "management tool"). 
@@ -293,7 +293,7 @@ Then output the slides (exactly {{presentation_meta.total_slides}} slides) as JS
           {{"name": "string", "role": "string (optional)", "org": "string (optional)"}}
         ],
       "date": "YYYY-MM-DD (optional; defaults to meta.date)"
-      "visual_hint": "string (optional)"
+      "visual_design": "string (optional)"
     }},
     {{
       "slide_id": 2,
@@ -318,14 +318,14 @@ Then output the slides (exactly {{presentation_meta.total_slides}} slides) as JS
           }}
         ]
       }},
-      "visual_hint": "string (optional)"
+      "visual_design": "string (optional)"
     }},
     {{
       "slide_id": N (ending page),
       "headline": "string (ending of the presentation, like 'Thank you'/'Decision needed'/'Next Step'/'Q&A' etc.)",
       "subtitle": "string (optional, adds precision or scope)",
       "category": "ending",
-      "visual_hint": "string (optional)"
+      "visual_design": "string (optional)"
     }},
     {{
       "slide_id": N+1 (Include this slide ONLY if Strategic Unknowns exist. Omit otherwise.),
@@ -480,22 +480,25 @@ def generate_story_from_source(
     # Parse JSON from response
     result = _parse_json_response(response)
     
-    # Extract slides from the result
-    if isinstance(result, dict) and "slides" in result:
-        slides = result["slides"]
-    elif isinstance(result, list):
-        slides = result
-    else:
-        raise ValueError(f"Unexpected response format: expected dict with 'slides' or array, got {type(result)}")
+    # Extract slides (parser guarantees dict with "slides" key)
+    slides = result["slides"]
     
     # Validate and normalize
     for slide in slides:
+        # Normalize slide_id to id (new SCQA format uses slide_id)
+        if "slide_id" in slide and "id" not in slide:
+            slide["id"] = f"slide_{str(slide['slide_id']).zfill(2)}"
+        
         slide["state"] = "draft"
         slide.setdefault("layout", "")
         slide.setdefault("widgets", {})
         slide.setdefault("density", "moderate")
         slide.setdefault("visual_design", "hierarchical")
         slide.setdefault("atoms", [])
+        
+        # Set rank from slide_id if not present
+        if "rank" not in slide and "slide_id" in slide:
+            slide["rank"] = slide["slide_id"]
     
     return slides
 
@@ -642,9 +645,31 @@ Return ONLY the JSON array of all slides:
 def _parse_json_response(response: str):
     """Extract JSON object with slides from LLM response.
     
-    Handles format: {"slides": [...]}
+    Handles format: Array with slides element like [{"presentation_meta": ...}, {"slides": [...]}]
+    or direct {"slides": [...]}
     """
-    # Try to find JSON object with slides
+    # Try direct parse first
+    try:
+        parsed = json.loads(response)
+        
+        # If it's an array, find the element with "slides"
+        if isinstance(parsed, list):
+            for item in parsed:
+                if isinstance(item, dict) and "slides" in item:
+                    return item
+            # If no element has slides, raise error
+            raise ValueError("No element with 'slides' field found in array response")
+        
+        # If it's a dict with slides, return it
+        if isinstance(parsed, dict) and "slides" in parsed:
+            return parsed
+            
+        raise ValueError(f"Unexpected response format: {type(parsed)}")
+        
+    except json.JSONDecodeError:
+        pass
+    
+    # Try to find JSON object with slides using regex
     json_match = re.search(r'\{[\s\S]*"slides"[\s\S]*\}', response)
     if json_match:
         try:
@@ -652,11 +677,7 @@ def _parse_json_response(response: str):
         except json.JSONDecodeError:
             pass
     
-    # Try direct parse
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse story response as JSON: {e}")
+    raise ValueError(f"Failed to parse story response as JSON")
 
 
 def _parse_json_array(response: str) -> List[Dict]:
