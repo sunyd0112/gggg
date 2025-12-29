@@ -43,6 +43,157 @@ def _get_atom_type(atom) -> str:
     return type(atom).__name__
 
 
+def _get_layout_prompt_from_content(
+    draft_slides: List[Dict],
+    context_before: List[Dict],
+    context_after: List[Dict],
+    theme_id: Optional[str],
+    intent_guidance: str,
+) -> str:
+    """Build prompt for layout generation from SCQA content-based slides.
+    
+    These slides already have headline, subtitle, content.sections populated.
+    Task is to select appropriate layout and convert content to proper widgets.
+    """
+    drafts_json = json.dumps(draft_slides, indent=2, ensure_ascii=False)
+    
+    # Build context section - only include layout info from context slides
+    context_section = ""
+    if context_before:
+        context_slim = [{"id": s.get("id"), "layout": s.get("layout")} for s in context_before]
+        context_section += f"## Slides Before (for layout flow)\n```json\n{json.dumps(context_slim, indent=2)}\n```\n\n"
+    if context_after:
+        context_slim = [{"id": s.get("id"), "layout": s.get("layout")} for s in context_after]
+        context_section += f"## Slides After (for layout flow)\n```json\n{json.dumps(context_slim, indent=2)}\n```\n\n"
+    
+    guidance_section = f"\n\n## Guidance\n{intent_guidance}" if intent_guidance else ""
+    
+    return f"""# SLIDE LAYOUT GENERATION (Content-Based)
+
+You are converting draft slides with populated content into active slides with layouts and widgets.
+
+## Draft Slides
+```json
+{drafts_json}
+```
+{context_section}{guidance_section}
+
+# TASK
+
+For each slide:
+1. **Select layout** based on `visual_design` description and `category`
+2. **Generate widgets** by converting `content.sections` and `headline`/`subtitle` into proper widget structure
+3. **Assign to slots** based on layout requirements and visual_design hints
+
+# AVAILABLE LAYOUTS (name: slots)
+
+**Custom Layouts:**
+- **two-cols-header**: header, left, right (two columns with prominent header)
+- **hero-split**: left, right (split layout, hero style)
+- **smart-grid**: header, col1, col2, col3, col4 (grid layout, 4 columns)
+- **timeline**: (chronological flow with timeline items)
+- **comparison**: (before/after comparison layout)
+- **dashboard**: (metrics dashboard layout)
+- **feature-grid**: (grid of features/cards)
+- **cards-grid**: (grid of card items)
+- **spotlight**: default, subtitle (focused single message)
+- **quote-hero**: quote, author, context (prominent quotes)
+- **stats-showcase**: (showcase multiple statistics)
+- **image-text**: (image with text combination)
+- **magazine**: (magazine-style layout)
+- **full-bleed**: (full-bleed image/content)
+- **info-boxes**: (information boxes layout)
+
+**Slidev Built-in Layouts:**
+- **default**: default (simple centered content)
+- **center**: default (centered content)
+- **cover**: default (title slide)
+- **end**: default (closing slide)
+- **two-cols**: left, right (basic two columns)
+
+# WIDGET TYPES
+
+**Typography (Type.*):**
+- `Type.Display`: Plain text for display (parameters: text)
+- `Type.Heading`: Markdown heading (parameters: text, level 1-3)
+- `Type.Body`: Paragraph text (parameters: text)
+- `Type.List`: Bullet list (parameters: items [array of strings])
+- `Type.Quote`: Blockquote (parameters: text)
+- `Type.Code`: Code block (parameters: code, language)
+
+**Data (Data.*):**
+- `Data.BigNum`: Large number display (parameters: value, label, sublabel)
+- `Data.Metric`: Metric with trend (parameters: value, label, change)
+- `Data.Progress`: Progress bar (parameters: value, label)
+- `Data.Table`: Markdown table (parameters: columns, rows)
+- `Data.Chart`: Chart placeholder (parameters: chartType, title)
+
+**Vue Components:**
+- `TableWidget`: Interactive table (parameters: title, columns, rows, variant, showHeader)
+- `ChartWidget`: Chart component (parameters: chartType, title, data, unit)
+- `QuoteWidget`: Styled quote (parameters: quote, author)
+- `MetricWidget`: Metric display (parameters: value, label, trend)
+
+# CONVERSION RULES
+
+1. **headline** → Header widget (Type.Heading level 1 or Data.BigNum if numeric)
+2. **subtitle** → Subheader widget (Type.Body or Type.Heading level 2)
+3. **content.sections** → Convert intelligently:
+   - Section title → Type.Heading (level 2 or 3)
+   - Bullets → Type.List with items array
+   - Split sections across slots if multi-column layout
+4. **visual_design keywords**:
+   - "two-column", "split", "side-by-side" → two-cols or hero-left
+   - "grid", "dashboard", "cards" → smart-grid or dashboard
+   - "timeline", "chronological", "steps" → timeline
+   - "comparison", "before/after" → comparison
+   - "centered", "focus", "spotlight" → spotlight or center
+   - "quote" → quote-hero
+5. **Preserve fields**: Keep all original fields (headline, subtitle, content, category, visual_design, density, speaker_intent, density_tag, presenters, date, etc.)
+
+# OUTPUT FORMAT
+
+Return a JSON array of active slides. Each slide must have:
+- `id`: Keep original
+- `rank`: Keep original  
+- `state`: Set to "active"
+- `layout`: Selected layout name
+- `widgets`: Object mapping slot names to widget objects
+- **All original fields preserved** (headline, subtitle, content, category, visual_design, density, atoms, speaker_intent, density_tag, presenters, date, etc.)
+
+Example:
+```json
+[
+  {{
+    "id": "slide_02",
+    "rank": 2,
+    "state": "active",
+    "layout": "two-cols",
+    "widgets": {{
+      "left": {{
+        "type": "Type.Heading",
+        "parameters": {{"text": "Meetings drive outcomes", "level": 2}}
+      }},
+      "right": {{
+        "type": "Type.List",
+        "parameters": {{"items": ["Point 1", "Point 2"]}}
+      }}
+    }},
+    "headline": "Manual doc creation is slowing execution",
+    "subtitle": "High-value meetings require hours of post-processing",
+    "category": "Situation",
+    "content": {{...}},
+    "visual_design": "Two-column framework...",
+    "density": "moderate",
+    "atoms": [],
+    "speaker_intent": "Create urgency..."
+  }}
+]
+```
+
+**CRITICAL**: Return ONLY the JSON array, no explanation or markdown wrapper."""
+
+
 def _get_layout_prompt(
     draft_slides: List[Dict],
     context_before: List[Dict],
@@ -51,7 +202,7 @@ def _get_layout_prompt(
     theme_id: Optional[str],
     intent_guidance: str,
 ) -> str:
-    """Build prompt for layout generation."""
+    """Build prompt for layout generation from atom-based slides (legacy)."""
     drafts_json = json.dumps(draft_slides, indent=2)
     
     # Only include atoms that are referenced by the draft slides
@@ -158,7 +309,10 @@ def generate_layouts(
     
     if has_content:
         # New SCQA format: content already generated by story tool
-        return _generate_layouts_from_content(draft_slides, theme_id)
+        return _generate_layouts_from_content(
+            draft_slides, context_before, context_after,
+            theme_id, intent_guidance
+        )
     
     # Old atom-based format
     if not atoms:
@@ -214,85 +368,50 @@ def _fallback_layouts(draft_slides: List[Dict]) -> List[Dict]:
 
 def _generate_layouts_from_content(
     draft_slides: List[Dict],
+    context_before: List[Dict],
+    context_after: List[Dict],
     theme_id: Optional[str],
+    intent_guidance: str,
 ) -> List[Dict[str, Any]]:
-    """Generate layouts for slides that already have content populated.
+    """Generate layouts for slides that already have content populated (SCQA format).
     
-    New SCQA format: content structure is already present, just need to:
-    1. Map visual_design to layout name
-    2. Convert content sections/bullets to widgets
-    3. Normalize field names (slide_id -> id, etc.)
+    New SCQA format: Slides have headline, subtitle, content.sections populated.
+    Uses LLM to:
+    1. Select appropriate layout based on visual_design description
+    2. Convert content sections/bullets to proper widget structure
+    3. Preserve all original fields (citations, speaker_intent, etc.)
     """
-    active_slides = []
+    prompt = _get_layout_prompt_from_content(
+        draft_slides, context_before, context_after,
+        theme_id, intent_guidance
+    )
     
-    for slide in draft_slides:
-        # Normalize field names
-        slide_id = slide.get("id") or slide.get("slide_id")
-        rank = slide.get("rank", 0)
-        
-        # Determine layout from visual_design or category
-        visual_design = slide.get("visual_design", "").lower()
-        category = slide.get("category", "")
-        
-        # Simple layout mapping based on category and visual_design
-        if category == "cover":
-            layout = "title"
-        elif category == "ending":
-            layout = "ending"
-        elif "chart" in visual_design or "matrix" in visual_design:
-            layout = "visual-emphasis"
-        elif "hero" in visual_design or "split" in visual_design:
-            layout = "hero-left"
-        else:
-            layout = "standard"
-        
-        # Extract widgets from content if present
-        widgets = {}
-        content = slide.get("content", {})
-        if content and isinstance(content, dict):
-            sections = content.get("sections", [])
-            if sections:
-                # Convert sections/bullets to widget format
-                bullets = []
-                for section in sections:
-                    if section.get("title"):
-                        bullets.append({"text": section["title"], "level": "h3"})
-                    for bullet in section.get("bullets", []):
-                        bullets.append({"text": bullet.get("text", ""), "level": "body"})
-                
-                widgets["content"] = {"type": "text", "bullets": bullets}
-        
-        # Build active slide
-        active_slide = {
-            "id": slide_id,
-            "rank": rank,
-            "state": "active",
-            "layout": layout,
-            "widgets": widgets,
-            # Preserve all original fields
-            "headline": slide.get("headline", ""),
-            "subtitle": slide.get("subtitle"),
-            "category": slide.get("category"),
-            "content": content,
-            "visual_design": slide.get("visual_design", ""),
-            "density": slide.get("density", "moderate"),
-            "atoms": slide.get("atoms", []),
-        }
-        
-        # Add cover-specific fields
-        if category == "cover":
-            active_slide["presenters"] = slide.get("presenters", [])
-            active_slide["date"] = slide.get("date")
-        
-        # Add speaker_intent if present
-        if slide.get("speaker_intent"):
-            active_slide["speaker_intent"] = slide["speaker_intent"]
-        
-        # Add density_tag if present
-        if slide.get("density_tag"):
-            active_slide["density_tag"] = slide["density_tag"]
-        
-        active_slides.append(active_slide)
+    deployment = os.getenv('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o')
+    response = call_llm(
+        system_prompt="You are a presentation layout designer. Convert content-based slides to properly structured layouts with widgets. Output only valid JSON array.",
+        user_prompt=prompt,
+        deployment=deployment,
+        temperature=0.7,
+        max_tokens=16000,  # Need room for 10 slides with full content
+    )
+    
+    # Parse JSON from response
+    active_slides = _parse_json_array(response)
+    
+    # Validate and ensure all fields are present
+    for slide in active_slides:
+        slide["state"] = "active"
+        if not slide.get("layout"):
+            # Fallback layout selection
+            category = slide.get("category", "")
+            if category == "cover":
+                slide["layout"] = "title"
+            elif category == "ending":
+                slide["layout"] = "ending"
+            else:
+                slide["layout"] = "center"
+        if not slide.get("widgets"):
+            slide["widgets"] = {}
     
     return active_slides
 

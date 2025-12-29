@@ -268,7 +268,7 @@ class SlidevRenderer:
             # Render each widget with its slot name
             slots_content = []
             for slot_name, widget_data in widgets.items():
-                widget_content = self._render_widget(widget_data)
+                widget_content = self._render_widget_or_array(widget_data)
                 # Sanitize content to avoid Slidev parsing issues
                 widget_content = self._sanitize_content(widget_content)
                 
@@ -282,7 +282,7 @@ class SlidevRenderer:
             # For layouts without slots (cover, quote, etc.), combine all widgets
             widget_contents = []
             for slot_name, widget_data in widgets.items():
-                widget_content = self._render_widget(widget_data)
+                widget_content = self._render_widget_or_array(widget_data)
                 # Sanitize content to avoid Slidev parsing issues
                 widget_content = self._sanitize_content(widget_content)
                 widget_contents.append(widget_content)
@@ -664,6 +664,22 @@ mdc: true
         # Convert to YAML (use literal style for multi-line strings)
         yaml_content = yaml.dump(frontmatter_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         return f"---\n{yaml_content}---"
+    
+    def _render_widget_or_array(self, widget_data) -> str:
+        """Render widget or array of widgets.
+        
+        Args:
+            widget_data: Widget object, dict, or list of widgets
+            
+        Returns:
+            str: Rendered markdown
+        """
+        # Handle arrays of widgets
+        if isinstance(widget_data, list):
+            rendered_widgets = [self._render_widget(w) for w in widget_data]
+            return "\n\n".join(rendered_widgets)
+        else:
+            return self._render_widget(widget_data)
     
     def _render_widget(self, widget_data) -> str:
         """Dispatch widget rendering based on type.
